@@ -1,4 +1,3 @@
-import React from 'react'
 import { useRef, useState, useEffect } from 'react';
 import { ToastContainer, toast } from 'react-toastify';
 import { v4 as uuidv4 } from 'uuid';
@@ -12,10 +11,15 @@ const Manager = () => {
     const [passwordArray, setPasswordArray] = useState([])
 
     const getPasswords = async () => {
-        let req = await fetch("http://localhost:3000/")
-        let passwords = await req.json();
-        console.log(passwords)
-        setPasswordArray(passwords)
+        try {
+            let req = await fetch("http://localhost:3000/")
+            let passwords = await req.json();
+            console.log(passwords)
+            setPasswordArray(passwords)
+        } catch (error) {
+            console.error('Error fetching passwords:', error)
+            toast.error('Failed to load passwords');
+        }
     }
 
     useEffect(() => {
@@ -46,31 +50,36 @@ const Manager = () => {
 
     const savePassword = async () => {
         if (form.site.length > 3 && form.username.length > 3 && form.password.length > 3) {
+            try {
+                // if any such id exists in db, delete that first
+                await fetch("http://localhost:3000/", {
+                    method: "delete",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ id: form.id })
+                })
 
-            // if any such id exists in db, delete that first
-            await fetch("http://localhost:3000/", {
-                method: "delete",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ id: form.id })
-            })
-
-            setPasswordArray([...passwordArray, { ...form, id: uuidv4() }])
-            await fetch("http://localhost:3000/", {
-                method: "POST",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ ...form, id: uuidv4() })
-            })
-            // localStorage.setItem("passwords", JSON.stringify([...passwordArray, { ...form, id: uuidv4() }]))
-            // console.log([...passwordArray, form])
-            setform({ site: "", username: "", password: "" })
-            toast.success('Password saved!');
+                const newPassword = { ...form, id: uuidv4() }
+                setPasswordArray([...passwordArray, newPassword])
+                await fetch("http://localhost:3000/", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify(newPassword)
+                })
+                // localStorage.setItem("passwords", JSON.stringify([...passwordArray, { ...form, id: uuidv4() }]))
+                // console.log([...passwordArray, form])
+                setform({ site: "", username: "", password: "" })
+                toast.success('Password saved!');
+            } catch (error) {
+                console.error('Error saving password:', error)
+                toast.error('Failed to save password');
+            }
         }
         else {
-            toast.error('Error: Password not saved!');
+            toast.error('Error: Password not saved! All fields must be longer than 3 characters.');
         }
 
     }
@@ -79,16 +88,23 @@ const Manager = () => {
         console.log("Deleting password with id ", id)
         let c = confirm("Do you really want to delete this password?")
         if (c) {
-            setPasswordArray(passwordArray.filter(item => item.id !== id))
-            // localStorage.setItem("passwords", JSON.stringify(passwordArray.filter(item => item.id !== id)))
-            let res = await fetch("http://localhost:3000/", {
-                method: "delete",
-                headers: {
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({ id })
-            })
-            toast.success('Password Deleted!');
+            try {
+                setPasswordArray(passwordArray.filter(item => item.id !== id))
+                // localStorage.setItem("passwords", JSON.stringify(passwordArray.filter(item => item.id !== id)))
+                await fetch("http://localhost:3000/", {
+                    method: "delete",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({ id })
+                })
+                toast.success('Password Deleted!');
+            } catch (error) {
+                console.error('Error deleting password:', error)
+                toast.error('Failed to delete password');
+                // Restore the password in state if deletion failed
+                getPasswords();
+            }
         }
 
     }
